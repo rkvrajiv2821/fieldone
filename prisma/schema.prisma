@@ -1,0 +1,348 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Prisma Schema — GZFieldOne
+// DB: MySQL  |  Generator: Prisma Client
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER
+}
+
+enum LeadStatus {
+  LEAD
+  FOLLOW_UP
+  CLIENT
+}
+
+enum FollowUpStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ProductPermission {
+  VIEW_ONLY
+  CREATE
+  EDIT
+  FULL_ACCESS
+}
+
+enum NotificationType {
+  FOLLOW_UP_DUE
+  FOLLOW_UP_OVERDUE
+  LEAD_ASSIGNED
+  LEAD_CONVERTED
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  WHATSAPP
+  BOTH
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String
+  phone         String?
+  whatsappNumber String? @map("whatsapp_number")
+  role          Role     @default(MANAGER)
+  isActive      Boolean  @default(true) @map("is_active")
+
+  // Super admin can isolate manager data
+  canViewAllLeads Boolean @default(false) @map("can_view_all_leads")
+
+  // Manager created by which super admin
+  createdById   String?  @map("created_by_id")
+  createdBy     User?    @relation("UserCreatedBy", fields: [createdById], references: [id])
+  managedUsers  User[]   @relation("UserCreatedBy")
+
+  // Associations
+  leads         Lead[]         @relation("LeadAssignedTo")
+  followUps     FollowUp[]     @relation("FollowUpAssignedTo")
+  notifications Notification[]
+  activityLogs  ActivityLog[]
+  blockedNumbers BlockedNumber[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEADS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Lead {
+  id          String     @id @default(cuid())
+  name        String
+  email       String?
+  phone       String
+  whatsappNumber String? @map("whatsapp_number")
+  company     String?
+  source      String?    // Website, Referral, Ads, Cold Call, etc.
+  notes       String?    @db.Text
+  status      LeadStatus @default(LEAD)
+
+  // Owner info (business/company owner on lead's side) — `phone` above IS the owner's phone
+  ownerName    String? @map("owner_name")
+  ownerPhoto   String? @map("owner_photo")
+
+  // Manager info (displayed name + photo for this lead)
+  managerName  String? @map("manager_name")
+  managerPhone String? @map("manager_phone")
+  managerPhoto String? @map("manager_photo")
+  staffType    String? @map("staff_type") // free text, catalog managed in the StaffType table
+
+  // Company info
+  companyImage String? @map("company_image")
+  address      String? @db.Text
+
+  // Assignment
+  assignedToId String @map("assigned_to_id")
+  assignedTo   User   @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+
+  // Client conversion
+  client      Client?
+
+  // Follow-ups
+  followUps   FollowUp[]
+
+  // Activity
+  activityLogs ActivityLog[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([assignedToId])
+  @@index([status])
+  @@map("leads")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FOLLOW-UPS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FollowUp {
+  id            String         @id @default(cuid())
+  scheduledAt   DateTime       @map("scheduled_at")
+  notes         String?        @db.Text
+  status        FollowUpStatus @default(PENDING)
+  priority      Priority       @default(MEDIUM)
+  contactMethod String?        @map("contact_method") // Call, WhatsApp, Email, Meeting
+  purpose       String?        @map("purpose") // Payment Collection, Existing Follow-up Continue, etc.
+
+  // Relationships
+  leadId        String @map("lead_id")
+  lead          Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  assignedToId  String @map("assigned_to_id")
+  assignedTo    User   @relation("FollowUpAssignedTo", fields: [assignedToId], references: [id])
+
+  // Completion
+  completedAt   DateTime? @map("completed_at")
+  completionNote String?  @map("completion_note") @db.Text
+
+  // WhatsApp reminder sent?
+  reminderSentAt DateTime? @map("reminder_sent_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([leadId])
+  @@index([assignedToId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("follow_ups")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FOLLOW-UP PURPOSES (user-extendable catalog of reasons for a follow-up)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FollowUpPurpose {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("follow_up_purposes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STAFF TYPES (user-extendable catalog, e.g. Manager, Incharge)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model StaffType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("staff_types")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SOURCES (user-extendable catalog, e.g. Website, Referral, Ads)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Source {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("sources")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BLOCKED NUMBERS (Super Admin only — prevents new customers with this phone)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BlockedNumber {
+  id     String  @id @default(cuid())
+  phone  String  @unique // normalized digits-only
+  reason String?
+
+  blockedById String @map("blocked_by_id")
+  blockedBy   User   @relation(fields: [blockedById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("blocked_numbers")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLIENTS (converted leads)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Client {
+  id          String    @id @default(cuid())
+  convertedAt DateTime  @default(now()) @map("converted_at")
+  notes       String?   @db.Text
+
+  // One-to-one with Lead
+  leadId      String @unique @map("lead_id")
+  lead        Lead   @relation(fields: [leadId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("clients")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String              @id @default(cuid())
+  title     String
+  message   String              @db.Text
+  type      NotificationType
+  channel   NotificationChannel @default(IN_APP)
+  isRead    Boolean             @default(false) @map("is_read")
+  readAt    DateTime?           @map("read_at")
+
+  // Reference data (optional)
+  refId     String? @map("ref_id")   // leadId or followUpId
+  refType   String? @map("ref_type") // "lead" | "followUp"
+
+  // Owner
+  userId    String @map("user_id")
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRODUCTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  description String? @db.Text
+  image       String?
+  price       Decimal @db.Decimal(12, 2)
+  isActive    Boolean @default(true) @map("is_active")
+
+  // Who created it
+  createdById String @map("created_by_id")
+
+  // Per-manager permissions
+  permissions ProductManagerPermission[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model ProductManagerPermission {
+  id         String            @id @default(cuid())
+  productId  String            @map("product_id")
+  managerId  String            @map("manager_id")
+  permission ProductPermission @default(VIEW_ONLY)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([productId, managerId])
+  @@map("product_manager_permissions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVITY LOGS (audit trail)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id        String  @id @default(cuid())
+  action    String  // "LEAD_CREATED", "STATUS_CHANGED", "FOLLOW_UP_SCHEDULED" etc.
+  details   String? @db.Text
+  ipAddress String? @map("ip_address")
+
+  // Who did it
+  userId    String @map("user_id")
+  user      User   @relation(fields: [userId], references: [id])
+
+  // What it affected
+  leadId    String? @map("lead_id")
+  lead      Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([leadId])
+  @@map("activity_logs")
+}
