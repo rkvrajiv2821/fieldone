@@ -155,15 +155,6 @@ export function LoginForm() {
           "Sign in"
         )}
       </button>
-
-      <div className="pt-1 border-t border-white/10">
-        <p className="text-xs text-slate-500 text-center">
-          Demo:{" "}
-          <span className="text-slate-400 font-mono">superadmin@marketingcrm.com</span>
-          {" / "}
-          <span className="text-slate-400 font-mono">SuperAdmin@123</span>
-        </p>
-      </div>
     </form>
   );
 }
