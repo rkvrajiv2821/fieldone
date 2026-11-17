@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus, Search, UserCheck, UserX, Key, Edit2,
-  TrendingUp, Users, ShieldCheck, ShieldOff, MoreVertical,
+  TrendingUp, Users, ShieldCheck, ShieldOff, MoreVertical, ArrowRightLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, getInitials, cn } from "@/lib/utils";
 import { CreateManagerModal } from "./CreateManagerModal";
 import { EditManagerModal } from "./EditManagerModal";
 import { ResetPasswordModal } from "./ResetPasswordModal";
+import { TransferCustomersModal, type TransferResult } from "./TransferCustomersModal";
 
 type Manager = {
   id: string; name: string; email: string;
@@ -21,12 +22,13 @@ type Manager = {
 };
 
 // ── Portal-based action menu ──────────────────────────────────────────────────
-function ActionMenu({ manager, onEdit, onResetPassword, onToggleActive, onToggleLeads, loadingId }: {
+function ActionMenu({ manager, onEdit, onResetPassword, onToggleActive, onToggleLeads, onTransfer, loadingId }: {
   manager: Manager;
   onEdit: () => void;
   onResetPassword: () => void;
   onToggleActive: () => void;
   onToggleLeads: () => void;
+  onTransfer: () => void;
   loadingId: string | null;
 }) {
   const [open, setOpen]       = useState(false);
@@ -55,6 +57,7 @@ function ActionMenu({ manager, onEdit, onResetPassword, onToggleActive, onToggle
       icon: manager.canViewAllLeads ? <ShieldOff className="w-4 h-4 text-gray-400" /> : <ShieldCheck className="w-4 h-4 text-gray-400" />,
       onClick: () => { onToggleLeads(); setOpen(false); }, cls: "text-gray-700 hover:bg-gray-50" },
     { label: "Reset password", icon: <Key        className="w-4 h-4 text-gray-400" />, onClick: () => { onResetPassword(); setOpen(false); }, cls: "text-gray-700 hover:bg-gray-50" },
+    { label: "Transfer customers", icon: <ArrowRightLeft className="w-4 h-4 text-gray-400" />, onClick: () => { onTransfer(); setOpen(false); }, cls: "text-gray-700 hover:bg-gray-50" },
     null,
     { label: manager.isActive ? "Deactivate" : "Activate",
       icon: manager.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />,
@@ -112,6 +115,7 @@ export function ManagersClient({ initialManagers }: { initialManagers: Manager[]
   const [editManager,  setEditManager]  = useState<Manager | null>(null);
   const [resetManager, setResetManager] = useState<Manager | null>(null);
   const [loadingId,    setLoadingId]    = useState<string | null>(null);
+  const [transfer,     setTransfer]     = useState<{ manager: Manager; deactivateMode: boolean } | null>(null);
 
   const filtered = managers.filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -121,7 +125,31 @@ export function ManagersClient({ initialManagers }: { initialManagers: Manager[]
   const activeCount = managers.filter((m) => m.isActive).length;
   const totalLeads  = managers.reduce((acc, m) => acc + m._count.leads, 0);
 
+  function handleTransferred(r: TransferResult) {
+    setManagers((prev) => prev.map((m) => {
+      if (m.id === r.from.id)
+        return { ...m, isActive: r.deactivated ? false : m.isActive, convertedCustomers: 0, pendingFollowUps: 0, _count: { leads: 0 } };
+      if (m.id === r.to.id)
+        return {
+          ...m,
+          convertedCustomers: m.convertedCustomers + (managers.find((x) => x.id === r.from.id)?.convertedCustomers ?? 0),
+          pendingFollowUps:   m.pendingFollowUps + r.openFollowUps,
+          _count: { leads: m._count.leads + r.customers },
+        };
+      return m;
+    }));
+  }
+
   async function toggleActive(manager: Manager) {
+    // Deactivating a manager who still owns customers: offer the transfer first
+    if (manager.isActive && manager._count.leads > 0) {
+      setTransfer({ manager, deactivateMode: true });
+      return;
+    }
+    await setActive(manager);
+  }
+
+  async function setActive(manager: Manager) {
     setLoadingId(manager.id);
     try {
       const res  = await fetch(`/api/managers/${manager.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: !manager.isActive }) });
@@ -266,6 +294,7 @@ export function ManagersClient({ initialManagers }: { initialManagers: Manager[]
                         onResetPassword={() => setResetManager(manager)}
                         onToggleActive={() => toggleActive(manager)}
                         onToggleLeads={() => toggleViewAllLeads(manager)}
+                        onTransfer={() => setTransfer({ manager, deactivateMode: false })}
                       />
                     </td>
                   </tr>
@@ -291,6 +320,16 @@ export function ManagersClient({ initialManagers }: { initialManagers: Manager[]
       )}
       {resetManager && (
         <ResetPasswordModal manager={resetManager} onClose={() => setResetManager(null)} />
+      )}
+      {transfer && (
+        <TransferCustomersModal
+          manager={transfer.manager}
+          managers={managers}
+          deactivateMode={transfer.deactivateMode}
+          onClose={() => setTransfer(null)}
+          onTransferred={handleTransferred}
+          onDeactivateOnly={() => setActive(transfer.manager)}
+        />
       )}
     </div>
   );
