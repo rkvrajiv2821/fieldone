@@ -11,6 +11,8 @@ const OPEN_STATUSES = [FollowUpStatus.PENDING, FollowUpStatus.OVERDUE];
 const transferSchema = z.object({
   toManagerId: z.string().min(1),
   deactivate:  z.boolean().optional(),
+  // Omit to transfer the manager's whole customer base; send ids to transfer only those customers
+  leadIds:     z.array(z.string().min(1)).min(1).max(5000).optional(),
 });
 
 async function getCounts(managerId: string) {
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Please choose a manager to transfer to" }, { status: 400 });
 
     const { toManagerId, deactivate } = parsed.data;
+    const leadIds = parsed.data.leadIds ? Array.from(new Set(parsed.data.leadIds)) : null;
     if (toManagerId === fromId)
       return NextResponse.json({ error: "Choose a different manager to transfer to" }, { status: 400 });
 
@@ -69,33 +72,50 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!to)   return NextResponse.json({ error: "Target manager not found or inactive" }, { status: 400 });
 
     const result = await prisma.$transaction(async (tx) => {
-      const leadsBefore     = await tx.lead.count({ where: { assignedToId: fromId } });
-      const totalLeadsBefore = await tx.lead.count();
-      const totalFollowUpsBefore = await tx.followUp.count();
+      const leadWhere     = leadIds ? { id: { in: leadIds }, assignedToId: fromId } : { assignedToId: fromId };
+      const followUpWhere = leadIds
+        ? { leadId: { in: leadIds }, assignedToId: fromId, status: { in: OPEN_STATUSES } }
+        : { assignedToId: fromId, status: { in: OPEN_STATUSES } };
 
-      const leads = await tx.lead.updateMany({
-        where: { assignedToId: fromId }, data: { assignedToId: toManagerId },
-      });
-      const followUps = await tx.followUp.updateMany({
-        where: { assignedToId: fromId, status: { in: OPEN_STATUSES } },
-        data:  { assignedToId: toManagerId },
-      });
+      const fromLeadsBefore      = await tx.lead.count({ where: { assignedToId: fromId } });
+      const toLeadsBefore        = await tx.lead.count({ where: { assignedToId: toManagerId } });
+      const totalLeadsBefore     = await tx.lead.count();
+      const totalFollowUpsBefore = await tx.followUp.count();
+      const expected             = leadIds ? leadIds.length : fromLeadsBefore;
+
+      // Every selected customer must exist and currently belong to the leaving manager
+      const matching = await tx.lead.count({ where: leadWhere });
+      if (matching !== expected) throw new Error("SELECTION_INVALID");
+      const converted = await tx.lead.count({ where: { ...leadWhere, status: "CLIENT" } });
+
+      const leads = await tx.lead.updateMany({ where: leadWhere, data: { assignedToId: toManagerId } });
+      const followUps = await tx.followUp.updateMany({ where: followUpWhere, data: { assignedToId: toManagerId } });
 
       // Safety checks — roll everything back if anything looks off
-      const leadsLeft = await tx.lead.count({ where: { assignedToId: fromId } });
-      const totalLeadsAfter = await tx.lead.count();
+      const fromLeadsAfter      = await tx.lead.count({ where: { assignedToId: fromId } });
+      const toLeadsAfter        = await tx.lead.count({ where: { assignedToId: toManagerId } });
+      const totalLeadsAfter     = await tx.lead.count();
       const totalFollowUpsAfter = await tx.followUp.count();
-      if (leads.count !== leadsBefore || leadsLeft !== 0 ||
+      if (leads.count !== expected ||
+          fromLeadsAfter !== fromLeadsBefore - expected ||
+          toLeadsAfter   !== toLeadsBefore + expected ||
           totalLeadsAfter !== totalLeadsBefore || totalFollowUpsAfter !== totalFollowUpsBefore)
         throw new Error("TRANSFER_VERIFICATION_FAILED");
 
-      if (deactivate) await tx.user.update({ where: { id: fromId }, data: { isActive: false } });
+      // A manager can only be deactivated here once nothing is left with them
+      if (deactivate) {
+        if (fromLeadsAfter !== 0) throw new Error("DEACTIVATE_WITH_CUSTOMERS");
+        await tx.user.update({ where: { id: fromId }, data: { isActive: false } });
+      }
 
       const summary = {
         from: { id: from.id, name: from.name },
         to:   { id: to.id,   name: to.name },
         customers: leads.count,
+        converted,
         openFollowUps: followUps.count,
+        remainingCustomers: fromLeadsAfter,
+        selected: !!leadIds,
         deactivated: !!deactivate,
       };
 
@@ -126,6 +146,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     console.error("POST /api/managers/[id]/transfer error:", error);
     if (error?.message === "TRANSFER_VERIFICATION_FAILED")
       return NextResponse.json({ error: "Transfer was cancelled because the counts did not match. No data was changed." }, { status: 409 });
+    if (error?.message === "SELECTION_INVALID")
+      return NextResponse.json({ error: "Some selected customers no longer belong to this manager. Reload and try again. No data was changed." }, { status: 409 });
+    if (error?.message === "DEACTIVATE_WITH_CUSTOMERS")
+      return NextResponse.json({ error: "Customers are still assigned to this manager, so they can't be deactivated yet. No data was changed." }, { status: 400 });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import {
   Plus, Search, UserCheck, UserX, Key, Edit2,
   TrendingUp, Users, ShieldCheck, ShieldOff, MoreVertical, ArrowRightLeft,
@@ -109,6 +110,7 @@ function ActionMenu({ manager, onEdit, onResetPassword, onToggleActive, onToggle
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function ManagersClient({ initialManagers }: { initialManagers: Manager[] }) {
+  const router = useRouter();
   const [managers,     setManagers]     = useState<Manager[]>(initialManagers);
   const [search,       setSearch]       = useState("");
   const [showCreate,   setShowCreate]   = useState(false);
@@ -125,19 +127,13 @@ export function ManagersClient({ initialManagers }: { initialManagers: Manager[]
   const activeCount = managers.filter((m) => m.isActive).length;
   const totalLeads  = managers.reduce((acc, m) => acc + m._count.leads, 0);
 
+  // Pull exact per-manager numbers from the server after a transfer
+  useEffect(() => { setManagers(initialManagers); }, [initialManagers]);
+
   function handleTransferred(r: TransferResult) {
-    setManagers((prev) => prev.map((m) => {
-      if (m.id === r.from.id)
-        return { ...m, isActive: r.deactivated ? false : m.isActive, convertedCustomers: 0, pendingFollowUps: 0, _count: { leads: 0 } };
-      if (m.id === r.to.id)
-        return {
-          ...m,
-          convertedCustomers: m.convertedCustomers + (managers.find((x) => x.id === r.from.id)?.convertedCustomers ?? 0),
-          pendingFollowUps:   m.pendingFollowUps + r.openFollowUps,
-          _count: { leads: m._count.leads + r.customers },
-        };
-      return m;
-    }));
+    if (r.deactivated)
+      setManagers((prev) => prev.map((m) => m.id === r.from.id ? { ...m, isActive: false } : m));
+    router.refresh();
   }
 
   async function toggleActive(manager: Manager) {
