@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, Clock, AlertCircle, Pencil, Trash2,
-  Phone, Building2, CalendarClock, MessageSquare, ChevronDown,
+  Phone, Building2, CalendarClock, MessageSquare, ChevronDown, MapPin, Loader2, Mail,
 } from "lucide-react";
 import { FollowUpStatus } from "@prisma/client";
 import { cn, formatRelativeDate, priorityConfig } from "@/lib/utils";
@@ -19,7 +19,8 @@ type FollowUp = {
   purpose?: string | null;
   completedAt?: Date | null;
   completionNote?: string | null;
-  lead: { id: string; name: string; company?: string | null; phone: string };
+  liveLocation?: string | null;
+  lead: { id: string; name: string; email?: string | null; company?: string | null; phone: string };
   assignedTo: { id: string; name: string };
 };
 
@@ -38,12 +39,47 @@ const statusStyles = {
 export function FollowUpCard({ followUp, isSuperAdmin, onStatusChange, onEdit, onDelete }: {
   followUp: FollowUp;
   isSuperAdmin: boolean;
-  onStatusChange: (id: string, status: FollowUpStatus, note?: string) => void;
+  onStatusChange: (id: string, status: FollowUpStatus, note?: string, liveLocation?: string) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const [showComplete, setShowComplete] = useState(false);
   const [completionNote, setCompletionNote] = useState("");
+  const [liveLocation, setLiveLocation] = useState("");
+  const [locLoading, setLocLoading] = useState(false);
+  const [locError, setLocError] = useState("");
+
+  const captureLocation = () => {
+    if (!navigator.geolocation) {
+      setLocError("Geolocation is not supported by this browser");
+      return;
+    }
+    setLocLoading(true);
+    setLocError("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setLiveLocation(`https://www.google.com/maps?q=${latitude},${longitude}`);
+        setLocLoading(false);
+      },
+      (err) => {
+        setLiveLocation("");
+        setLocLoading(false);
+        setLocError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission denied. Allow location access and retry."
+            : "Could not get your location. Please retry."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
+  const openComplete = () => {
+    setLiveLocation("");
+    setShowComplete(true);
+    captureLocation();
+  };
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const priority = priorityConfig[followUp.priority];
 
@@ -62,11 +98,15 @@ export function FollowUpCard({ followUp, isSuperAdmin, onStatusChange, onEdit, o
             {/* Lead name + company */}
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-bold text-gray-900">{followUp.lead.name}</p>
-                {followUp.lead.company && (
-                  <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                    <Building2 className="w-3 h-3" /> {followUp.lead.company}
-                  </p>
+                {followUp.lead.company ? (
+                  <>
+                    <p className="inline-flex items-center gap-1.5 font-bold text-blue-900 bg-yellow-100 px-2 py-0.5 rounded">
+                      <Building2 className="w-4 h-4 shrink-0" /> {followUp.lead.company}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{followUp.lead.name}</p>
+                  </>
+                ) : (
+                  <p className="font-bold text-gray-900">{followUp.lead.name}</p>
                 )}
               </div>
               {/* Status badge */}
@@ -82,10 +122,18 @@ export function FollowUpCard({ followUp, isSuperAdmin, onStatusChange, onEdit, o
                 <CalendarClock className="w-3.5 h-3.5" />
                 {formatRelativeDate(followUp.scheduledAt)}
               </span>
-              <span className="flex items-center gap-1.5 text-xs text-gray-500">
+              <a href={`tel:${followUp.lead.phone}`}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline">
                 <Phone className="w-3.5 h-3.5" />
                 {followUp.lead.phone}
-              </span>
+              </a>
+              {followUp.lead.email && (
+                <a href={`mailto:${followUp.lead.email}`}
+                  className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                  <Mail className="w-3.5 h-3.5" />
+                  {followUp.lead.email}
+                </a>
+              )}
               {followUp.contactMethod && (
                 <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full font-medium">
                   {followUp.contactMethod}
@@ -118,13 +166,25 @@ export function FollowUpCard({ followUp, isSuperAdmin, onStatusChange, onEdit, o
                 ✓ {followUp.completionNote}
               </p>
             )}
+
+            {/* Live location link */}
+            {followUp.liveLocation && (
+              <a
+                href={followUp.liveLocation}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                <MapPin className="w-3.5 h-3.5" /> View live location
+              </a>
+            )}
           </div>
 
           {/* Actions */}
           {followUp.status !== FollowUpStatus.COMPLETED && (
             <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => setShowComplete(true)}
+                onClick={openComplete}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" /> Done
@@ -154,19 +214,43 @@ export function FollowUpCard({ followUp, isSuperAdmin, onStatusChange, onEdit, o
               onChange={(e) => setCompletionNote(e.target.value)}
               placeholder="Add a completion note (optional)..."
               rows={3}
-              className="form-input resize-none mb-4"
+              className="form-input resize-none mb-3"
             />
+
+            {/* Live location (required) */}
+            <div className="mb-4 text-sm">
+              <p className="font-medium text-gray-700 mb-1">Live location <span className="text-red-500">*</span></p>
+              {locLoading ? (
+                <p className="flex items-center gap-1.5 text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Getting your location...</p>
+              ) : liveLocation ? (
+                <div className="flex items-center justify-between gap-2">
+                  <a href={liveLocation} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-emerald-700 font-medium hover:underline">
+                    <MapPin className="w-3.5 h-3.5" /> Location captured — view on map
+                  </a>
+                  <button type="button" onClick={captureLocation} className="text-xs text-gray-500 hover:text-gray-700 underline">Refresh</button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-red-600 text-xs">{locError || "Location is required"}</span>
+                  <button type="button" onClick={captureLocation}
+                    className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg">Retry</button>
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3">
               <button onClick={() => setShowComplete(false)}
                 className="flex-1 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                 Cancel
               </button>
               <button
+                disabled={!liveLocation || locLoading}
                 onClick={() => {
-                  onStatusChange(followUp.id, FollowUpStatus.COMPLETED, completionNote);
+                  onStatusChange(followUp.id, FollowUpStatus.COMPLETED, completionNote, liveLocation);
                   setShowComplete(false);
                 }}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 Mark Complete
               </button>
             </div>

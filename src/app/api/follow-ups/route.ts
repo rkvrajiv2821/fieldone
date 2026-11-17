@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       prisma.followUp.findMany({
         where,
         include: {
-          lead:       { select: { id: true, name: true, company: true, phone: true, status: true } },
+          lead:       { select: { id: true, name: true, email: true, company: true, phone: true, status: true } },
           assignedTo: { select: { id: true, name: true } },
         },
         orderBy: upcoming ? { scheduledAt: "asc" } : { scheduledAt: "desc" },
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         assignedToId:  lead.assignedToId,
       },
       include: {
-        lead:       { select: { id: true, name: true, company: true, phone: true, status: true } },
+        lead:       { select: { id: true, name: true, email: true, company: true, phone: true, status: true } },
         assignedTo: { select: { id: true, name: true } },
       },
     });

@@ -12,10 +12,11 @@ export type DuplicateMatch = {
 };
 
 export async function findDuplicateLeads(
-  { phone, managerPhone, whatsappNumber }: { phone: string; managerPhone: string; whatsappNumber?: string },
+  { phone, managerPhone, whatsappNumber }: { phone: string; managerPhone?: string | null; whatsappNumber?: string },
   excludeId?: string
 ): Promise<DuplicateMatch[]> {
-  const orConditions: any[] = [{ phone }, { managerPhone }];
+  const orConditions: any[] = [{ phone }];
+  if (managerPhone) orConditions.push({ managerPhone });
   if (whatsappNumber) orConditions.push({ whatsappNumber });
 
   const duplicates = await prisma.lead.findMany({
@@ -30,7 +31,7 @@ export async function findDuplicateLeads(
   return duplicates.map((d) => {
     const matchedFields: string[] = [];
     if (d.phone === phone) matchedFields.push("Owner Phone Number");
-    if (d.managerPhone === managerPhone) matchedFields.push("Phone Number");
+    if (managerPhone && d.managerPhone === managerPhone) matchedFields.push("Phone Number");
     if (whatsappNumber && d.whatsappNumber === whatsappNumber) matchedFields.push("WhatsApp Number");
     return { name: d.name, company: d.company, matchedFields };
   });

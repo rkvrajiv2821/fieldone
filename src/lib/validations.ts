@@ -55,10 +55,11 @@ export const createLeadSchema = z.object({
   notes: z.string().max(2000, "Notes too long").optional().or(z.literal("")),
   assignedToId: z.string().min(1, "Please select a manager"),
   ownerPhoto:   z.string().optional().or(z.literal("")),
-  managerName:  z.string().min(1, "Name is required").max(100),
-  managerPhone: tenDigitPhone("Phone number"),
+  managerName:  z.string().max(100).optional().or(z.literal("")),
+  managerPhone: optionalTenDigitPhone("Phone number"),
   managerPhoto: z.string().optional().or(z.literal("")),
-  staffType:    z.string().min(1, "Please select a staff type"),
+  staffType:    z.string().optional().or(z.literal("")),
+  gstNumber:    z.string().trim().max(50, "GST number too long").optional().or(z.literal("")),
   companyImage: z.string().optional().or(z.literal("")),
   address:      z.string().optional().or(z.literal("")),
 });
@@ -69,9 +70,6 @@ export const updateLeadSchema = createLeadSchema.partial().extend({
   name:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone:        tenDigitPhone("Owner phone"),
   assignedToId: z.string().min(1, "Please select a manager"),
-  managerName:  z.string().min(1, "Name is required").max(100),
-  managerPhone: tenDigitPhone("Phone number"),
-  staffType:    z.string().min(1, "Please select a staff type"),
 });
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 

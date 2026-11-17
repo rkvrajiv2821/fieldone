@@ -13,6 +13,7 @@ const updateSchema = z.object({
   contactMethod: z.string().optional().nullable(),
   purpose: z.string().optional().nullable(),
   completionNote: z.string().optional().nullable(),
+  liveLocation: z.string().url().max(500).optional().nullable(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -45,6 +46,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     // If marking complete, set completedAt
     if (parsed.data.status === FollowUpStatus.COMPLETED) {
+      if (!parsed.data.liveLocation?.trim())
+        return NextResponse.json({ error: "Live location is required to complete a follow-up" }, { status: 400 });
       updateData.completedAt = new Date();
     }
 
@@ -52,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id },
       data: updateData,
       include: {
-        lead: { select: { id: true, name: true, company: true, phone: true, status: true } },
+        lead: { select: { id: true, name: true, email: true, company: true, phone: true, status: true } },
         assignedTo: { select: { id: true, name: true } },
       },
     });

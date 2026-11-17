@@ -82,7 +82,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     // Status is never client-settable — a lead only becomes a Customer automatically
     // when one of its follow-ups is completed (see src/lib/conversion.ts).
-    const { status: _status, ...updateData } = parsed.data;
+    const { status: _status, ...rest } = parsed.data;
+    const updateData = {
+      ...rest,
+      // optional staff/GST fields: empty string clears them (NULL); undefined leaves them untouched
+      ...(rest.managerName  !== undefined && { managerName:  rest.managerName  || null }),
+      ...(rest.managerPhone !== undefined && { managerPhone: rest.managerPhone || null }),
+      ...(rest.staffType    !== undefined && { staffType:    rest.staffType    || null }),
+      ...(rest.gstNumber    !== undefined && { gstNumber:    rest.gstNumber    || null }),
+    };
 
     const lead = await prisma.lead.update({
       where:   { id },

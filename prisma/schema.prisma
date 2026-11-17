@@ -120,6 +120,7 @@ model Lead {
   managerPhone String? @map("manager_phone")
   managerPhoto String? @map("manager_photo")
   staffType    String? @map("staff_type") // free text, catalog managed in the StaffType table
+  gstNumber    String? @map("gst_number")
 
   // Company info
   companyImage String? @map("company_image")
@@ -169,6 +170,7 @@ model FollowUp {
   // Completion
   completedAt   DateTime? @map("completed_at")
   completionNote String?  @map("completion_note") @db.Text
+  liveLocation   String?  @map("live_location") @db.Text // Google Maps link captured when completing
 
   // WhatsApp reminder sent?
   reminderSentAt DateTime? @map("reminder_sent_at")

@@ -261,10 +261,10 @@ export function CreateLeadModal({ managers, currentUser, onClose, onCreated }: {
   return (
     <>
     {createPortal(
-    <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", boxSizing: "border-box" }}>
+    <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100dvh", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", boxSizing: "border-box" }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.55)" }} />
 
-      <div style={{ position: "relative", zIndex: 1, background: "#fff", borderRadius: "1rem", boxShadow: "0 25px 60px rgba(0,0,0,0.3)", width: "100%", maxWidth: "38rem", maxHeight: "calc(100vh - 2rem)", display: "flex", flexDirection: "column" }}>
+      <div style={{ position: "relative", zIndex: 1, background: "#fff", borderRadius: "1rem", boxShadow: "0 25px 60px rgba(0,0,0,0.3)", width: "100%", maxWidth: "38rem", maxHeight: "calc(100dvh - 2rem)", display: "flex", flexDirection: "column" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.25rem 1.5rem", borderBottom: "1px solid #f3f4f6", flexShrink: 0 }}>
           <div>
@@ -277,7 +277,7 @@ export function CreateLeadModal({ managers, currentUser, onClose, onCreated }: {
         </div>
 
         <div style={{ overflowY: "auto", flex: 1 }}>
-          <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-5 space-y-5">
+          <form id="create-customer-form" onSubmit={handleSubmit(onSubmit)} className="px-6 py-5 space-y-5">
 
             {/* ── Photo uploads ── */}
             <div className="bg-gray-50 rounded-xl p-4">
@@ -331,7 +331,7 @@ export function CreateLeadModal({ managers, currentUser, onClose, onCreated }: {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <div>
-                  <label className="form-label">Name <span className="text-red-500">*</span></label>
+                  <label className="form-label">Name</label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input {...register("managerName")} placeholder="Staff name" autoComplete="off"
@@ -340,7 +340,7 @@ export function CreateLeadModal({ managers, currentUser, onClose, onCreated }: {
                   {errors.managerName && <p className="form-error">{errors.managerName.message}</p>}
                 </div>
                 <div>
-                  <label className="form-label">Phone Number <span className="text-red-500">*</span></label>
+                  <label className="form-label">Phone Number</label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input {...managerPhoneField} onChange={(e) => { restrictToDigits(e); managerPhoneField.onChange(e); }}
@@ -352,7 +352,7 @@ export function CreateLeadModal({ managers, currentUser, onClose, onCreated }: {
               </div>
 
               <div className="mt-3">
-                <label className="form-label">Staff Type <span className="text-red-500">*</span></label>
+                <label className="form-label">Staff Type</label>
                 <SearchableSelect
                   options={staffTypes}
                   value={watch("staffType") || ""}
@@ -395,6 +395,13 @@ export function CreateLeadModal({ managers, currentUser, onClose, onCreated }: {
                     placeholder="Select or add a source..."
                   />
                 </div>
+              </div>
+
+              <div className="mt-3">
+                <label className="form-label">GST Number</label>
+                <input {...register("gstNumber")} placeholder="22AAAAA0000A1Z5" autoComplete="off"
+                  className={cn("form-input", errors.gstNumber && "border-red-400")} />
+                {errors.gstNumber && <p className="form-error">{errors.gstNumber.message}</p>}
               </div>
 
               <div className="mt-3">
@@ -541,17 +548,19 @@ export function CreateLeadModal({ managers, currentUser, onClose, onCreated }: {
               )}
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose}
-                className="flex-1 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                Cancel
-              </button>
-              <button type="submit" disabled={isLoading}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
-                {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : "Create Customer"}
-              </button>
-            </div>
           </form>
+        </div>
+
+        {/* Footer — always visible, outside the scroll area */}
+        <div className="flex gap-3 px-6 py-4 border-t border-gray-100" style={{ flexShrink: 0 }}>
+          <button type="button" onClick={onClose}
+            className="flex-1 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button type="submit" form="create-customer-form" disabled={isLoading}
+            className="flex-1 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+            {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : "Create Customer"}
+          </button>
         </div>
       </div>
     </div>,

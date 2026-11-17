@@ -157,13 +157,15 @@ export function CustomerHistoryModal({ leadId, onClose }: { leadId: string; onCl
                     <Building2 className="w-3.5 h-3.5" />{lead.company}
                   </span>
                 )}
-                <span className="flex items-center gap-1 text-xs text-gray-500">
+                <a href={`tel:${lead.phone}`}
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline">
                   <Phone className="w-3.5 h-3.5" />{lead.phone}
-                </span>
+                </a>
                 {lead.email && (
-                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                  <a href={`mailto:${lead.email}`}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline">
                     <Mail className="w-3.5 h-3.5" />{lead.email}
-                  </span>
+                  </a>
                 )}
                 {lead.address && (
                   <span className="flex items-center gap-1 text-xs text-gray-500">

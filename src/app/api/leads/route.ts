@@ -151,7 +151,16 @@ export async function POST(req: NextRequest) {
     const finalAssignedTo = session.user.role === Role.MANAGER ? session.user.id : assignedToId;
 
     const lead = await prisma.lead.create({
-      data:    { ...rest, assignedToId: finalAssignedTo, status: LeadStatus.LEAD },
+      data:    {
+        ...rest,
+        // store optional staff/GST fields as NULL rather than empty strings
+        managerName:  rest.managerName  || null,
+        managerPhone: rest.managerPhone || null,
+        staffType:    rest.staffType    || null,
+        gstNumber:    rest.gstNumber    || null,
+        assignedToId: finalAssignedTo,
+        status: LeadStatus.LEAD,
+      },
       include: { assignedTo: { select: { id: true, name: true, email: true } } },
     });
 

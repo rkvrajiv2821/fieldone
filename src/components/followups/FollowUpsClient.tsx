@@ -22,7 +22,8 @@ type FollowUp = {
   purpose?: string | null;
   completedAt?: Date | null;
   completionNote?: string | null;
-  lead: { id: string; name: string; company?: string | null; phone: string; status: string };
+  liveLocation?: string | null;
+  lead: { id: string; name: string; email?: string | null; company?: string | null; phone: string; status: string };
   assignedTo: { id: string; name: string };
 };
 
@@ -170,12 +171,12 @@ export function FollowUpsClient({ currentUser, managers, leads }: {
     loadCounts();
   }, [followUps]);
 
-  const handleStatusChange = async (id: string, status: FollowUpStatus, completionNote?: string) => {
+  const handleStatusChange = async (id: string, status: FollowUpStatus, completionNote?: string, liveLocation?: string) => {
     try {
       const res = await fetch(`/api/follow-ups/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, ...(completionNote && { completionNote }) }),
+        body: JSON.stringify({ status, ...(completionNote && { completionNote }), ...(liveLocation && { liveLocation }) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

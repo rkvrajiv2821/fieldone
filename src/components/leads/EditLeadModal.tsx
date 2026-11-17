@@ -61,6 +61,7 @@ export function EditLeadModal({ lead, managers, currentUser, onClose, onUpdated 
         managerPhone:  lead.managerPhone || "",
         managerPhoto:  lead.managerPhoto || "",
         staffType:     lead.staffType    || undefined,
+        gstNumber:     lead.gstNumber    || "",
         companyImage:  lead.companyImage || "",
         address:       lead.address      || "",
       },
@@ -236,13 +237,13 @@ export function EditLeadModal({ lead, managers, currentUser, onClose, onUpdated 
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="form-label">Name <span className="text-red-500">*</span></label>
+                <label className="form-label">Name</label>
                 <input {...register("managerName")} autoComplete="off" placeholder="Staff name"
                   className={cn("form-input", errors.managerName && "border-red-400")} />
                 {errors.managerName && <p className="form-error">{errors.managerName.message}</p>}
               </div>
               <div>
-                <label className="form-label">Phone Number <span className="text-red-500">*</span></label>
+                <label className="form-label">Phone Number</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input {...managerPhoneField} onChange={(e) => { restrictToDigits(e); managerPhoneField.onChange(e); }}
@@ -254,7 +255,7 @@ export function EditLeadModal({ lead, managers, currentUser, onClose, onUpdated 
             </div>
 
             <div>
-              <label className="form-label">Staff Type <span className="text-red-500">*</span></label>
+              <label className="form-label">Staff Type</label>
               <SearchableSelect
                 options={staffTypes}
                 value={watch("staffType") || ""}
@@ -273,6 +274,13 @@ export function EditLeadModal({ lead, managers, currentUser, onClose, onUpdated 
                   className={cn("form-input pl-10", errors.email && "border-red-400")} />
               </div>
               {errors.email && <p className="form-error">{errors.email.message}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">GST Number</label>
+              <input {...register("gstNumber")} autoComplete="off"
+                className={cn("form-input", errors.gstNumber && "border-red-400")} />
+              {errors.gstNumber && <p className="form-error">{errors.gstNumber.message}</p>}
             </div>
 
             {/* Company + Source */}
